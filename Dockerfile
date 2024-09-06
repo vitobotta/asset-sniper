@@ -3,34 +3,35 @@ FROM ubuntu:24.04
 ENV DEBIAN_FRONTEND=noninteractive
 ENV LANG=C.UTF-8
 ENV LC_ALL=C.UTF-8
+ENV PATH="/root/.local/bin:$PATH"
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     software-properties-common \
+    build-essential \
+    ca-certificates \
+    gnupg \
+    lsb-release \
     curl \
     wget \
-    build-essential \
-    ca-certificates && \
+    git && \
     rm -rf /var/lib/apt/lists/*
 
-ENV GO_VERSION=1.20.1
-RUN wget https://go.dev/dl/go$GO_VERSION.linux-amd64.tar.gz && \
-    tar -xvf go$GO_VERSION.linux-amd64.tar.gz && \
-    mv go /usr/local && \
-    rm go$GO_VERSION.linux-amd64.tar.gz
+RUN add-apt-repository ppa:longsleep/golang-backports && \
+  apt-get update && \
+  apt-get install -y golang-go && \
+  rm -rf /var/lib/apt/lists/*
 
-ENV GOROOT=/usr/local/go
-ENV GOPATH=$HOME/go
-ENV PATH=$GOPATH/bin:$GOROOT/bin:$PATH
+RUN add-apt-repository ppa:deadsnakes/ppa && \
+  apt-get update && \
+  apt-get install -y python3.11 python3.11-venv python3-pip && \
+  rm -rf /var/lib/apt/lists/*
 
-RUN apt-get update && \
-    add-apt-repository ppa:deadsnakes/ppa && \
-    apt-get install -y python3.11 python3.11-venv python3-pip && \
-    rm -rf /var/lib/apt/lists/*
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 
+ENV PATH=/root/.cargo/bin:$PATH
+ENV PYTHONUNBUFFERED=1
 
 RUN go install -v github.com/projectdiscovery/httpx/cmd/httpx@latest
-
-ENV PYTHONUNBUFFERED=1
 
 CMD ["bash"]
