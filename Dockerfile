@@ -29,7 +29,7 @@ RUN add-apt-repository ppa:deadsnakes/ppa && \
 
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 
-ENV PATH=/root/.cargo/bin:$PATH
+ENV PATH=/root/.cargo/bin:/root/go/bin:$PATH
 ENV PYTHONUNBUFFERED=1
 
 RUN go install -v github.com/projectdiscovery/httpx/cmd/httpx@latest
