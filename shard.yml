@@ -1,0 +1,17 @@
+name: asset_sniper
+version: 0.1.0
+
+authors:
+  - Vito Botta <vito@botta.me>
+
+targets:
+  asset_sniper:
+    main: src/asset_sniper.cr
+
+crystal: '>= 1.13.1'
+
+license: MIT
+
+dependencies:
+  admiral:
+    github: jwaldrip/admiral.cr
