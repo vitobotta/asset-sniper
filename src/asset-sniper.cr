@@ -76,12 +76,26 @@ module AssetSniper
       end
     end
 
+    class Cleanup < Admiral::Command
+      define_help description: "Cleanup - Remove an existing task"
+
+      define_flag batch : String,
+                  description: "The batch to reconnect to",
+                  long: "batch",
+                  short: "b",
+                  required: true
+      def run
+        AssetSniper::Cleanup.new("asset-sniper-batch-#{flags.batch}").run
+      end
+    end
+
     define_version VERSION
 
     define_help description: "asset-sniper - A tool to distribute recon work across multiple Kubernetes jobs"
 
     register_sub_command execute : Execute, description: "Run a recon tool in a distributed manner"
     register_sub_command reconnect : Reconnect, description: "Reconnect to an existing task"
+    register_sub_command cleanup : Cleanup, description: "Remove an existing task"
 
     def run
       puts help

@@ -4,6 +4,7 @@ require "crinja"
 require "./util"
 require "./util/shell"
 require "./job"
+require "./cleanup"
 
 class AssetSniper::Execute
   include Util
@@ -115,13 +116,9 @@ class AssetSniper::Execute
   end
 
   private def cleanup
-    return
     return if done_cleanup
 
-    puts "Cleaning up..."
-
-    run_shell_command("kubectl delete pods -l job_batch=#{job_batch_name} --force --grace-period=0 2>/dev/null", error_message: "Failed uploading artifacts")
-    run_shell_command("kubectl delete configmap #{job_batch_name}-dns-resolvers", error_message: "Failed uploading artifacts")
+    AssetSniper::Cleanup.new(job_batch_name).run
 
     @done_cleanup = true
   end
