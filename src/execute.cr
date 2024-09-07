@@ -89,8 +89,8 @@ class AssetSniper::Execute
           args: ["tail -f /dev/null"]
           resources:
             requests:
-              cpu: 0.5
-              memory: 25Mi
+              cpu: 0.05
+              memory: 200Mi
       restartPolicy: Never
     YAML
   end
