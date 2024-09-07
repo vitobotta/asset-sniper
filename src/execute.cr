@@ -90,7 +90,7 @@ class AssetSniper::Execute
     YAML
     CMD
 
-    run_shell_command(cmd, error_message: "Failed creating ConfigMap with DNS resolvers")
+    run_shell_command(cmd, error_message: "Failed creating ConfigMap with DNS resolvers", print_output: false)
   end
 
   private def aggregate_output
