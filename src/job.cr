@@ -68,7 +68,7 @@ class Job
     loop do
       break unless running
       print "."
-      sleep 5
+      sleep 10
     end
   end
 
