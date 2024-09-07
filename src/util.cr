@@ -12,8 +12,4 @@ module Util
 
     nil
   end
-
-  def log_line(line, log_prefix = "")
-    puts "[#{log_prefix}] #{line}"
-  end
 end

@@ -1,11 +1,10 @@
 require "random/secure"
 
 require "./shell/command_result"
-require "./prefixed_io"
 
 module Util
   module Shell
-    def run_shell_command(command : String, kubeconfig_path : String = "~/.kube/config", error_message : String = "", abort_on_error  = true, log_prefix = "", print_output : Bool = true) : CommandResult
+    def run_shell_command(command : String, kubeconfig_path : String = "~/.kube/config", error_message : String = "", abort_on_error  = true, print_output : Bool = true) : CommandResult
       cmd_file_path = "/tmp/cli_#{Random::Secure.hex(8)}.cmd"
 
       File.write(cmd_file_path, <<-CONTENT
@@ -20,12 +19,7 @@ module Util
       stderr = IO::Memory.new
 
       if print_output
-        all_io_out = if log_prefix.blank?
-          IO::MultiWriter.new(STDOUT, stdout)
-        else
-          IO::MultiWriter.new(PrefixedIO.new("[#{log_prefix}] ", STDOUT), stdout)
-        end
-
+        all_io_out = IO::MultiWriter.new(STDOUT, stdout)
         all_io_err = IO::MultiWriter.new(STDERR, stderr)
       else
         all_io_out = stdout
@@ -47,7 +41,7 @@ module Util
       result = CommandResult.new(output, status.exit_code)
 
       unless result.success?
-        log_line "#{error_message}: #{result.output}", log_prefix: log_prefix if print_output
+        puts "#{error_message}: #{result.output}"
         exit 1 if abort_on_error
       end
 

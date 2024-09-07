@@ -17,13 +17,20 @@ class AssetSniper::Execute
   getter jobs : Int32
   getter jobs_count : Int32 = 0
   getter command : String
+  getter job_batch_name : String
   private property done_cleanup : Bool = false
 
-  def initialize(input_file_path : String, output_file_path : String, command : String, jobs : Int32)
+  def initialize(input_file_path : String, output_file_path : String, command : String, jobs : Int32, batch : String = "")
     @input_file_path = input_file_path
     @output_file_path = output_file_path
     @command = command
     @jobs = jobs
+
+    @job_batch_name = if batch.blank?
+      "asset-sniper-batch-#{Random::Secure.hex(4)}"
+    else
+      "asset-sniper-batch-#{batch}"
+    end
   end
 
   def run
@@ -47,10 +54,6 @@ class AssetSniper::Execute
     end
   end
 
-  private def job_batch_name
-    @job_batch_name ||= "asset-sniper-batch-#{Random::Secure.hex(4)}"
-  end
-
   private def create_input_artifacts
     puts "Creating input artifacts..."
 
@@ -65,7 +68,7 @@ class AssetSniper::Execute
 
     job_batch_dir = "/tmp/#{job_batch_name}"
 
-    Dir.delete(job_batch_dir) if Dir.exists?(job_batch_dir)
+    FileUtils.rm_rf(job_batch_dir)
     Dir.mkdir_p(job_batch_dir)
 
     split_content.map_with_index do |content, index|
@@ -88,11 +91,11 @@ class AssetSniper::Execute
 
     puts "Creating configmap with DNS resolvers..."
 
-    run_shell_command(cmd, error_message = "Failed creating ConfigMap with DNS resolvers")
+    run_shell_command(cmd, error_message: "Failed creating ConfigMap with DNS resolvers")
   end
 
   private def aggregate_output
-    run_shell_command("cat /tmp/#{job_batch_name}/output-* > #{output_file_path}", error_message = "Failed aggregating results")
+    run_shell_command("cat /tmp/#{job_batch_name}/output-* > #{output_file_path}", error_message: "Failed aggregating results")
   end
 
   private def execute_jobs
@@ -112,12 +115,13 @@ class AssetSniper::Execute
   end
 
   private def cleanup
+    return
     return if done_cleanup
 
     puts "Cleaning up..."
 
-    run_shell_command("kubectl delete pods -l job_batch=#{job_batch_name} --force --grace-period=0 2>/dev/null", error_message = "Failed uploading artifacts")
-    run_shell_command("kubectl delete configmap #{job_batch_name}-dns-resolvers", error_message = "Failed uploading artifacts")
+    run_shell_command("kubectl delete pods -l job_batch=#{job_batch_name} --force --grace-period=0 2>/dev/null", error_message: "Failed uploading artifacts")
+    run_shell_command("kubectl delete configmap #{job_batch_name}-dns-resolvers", error_message: "Failed uploading artifacts")
 
     @done_cleanup = true
   end
