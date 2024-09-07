@@ -58,8 +58,6 @@ class AssetSniper::Execute
   end
 
   private def create_input_artifacts
-    puts "Creating input artifacts..."
-
     input_file = File.read(input_file_path)
     lines = input_file.lines
     @jobs_count = [jobs, lines.size].min
@@ -91,8 +89,6 @@ class AssetSniper::Execute
     #{yaml}
     YAML
     CMD
-
-    puts "Creating configmap with DNS resolvers..."
 
     run_shell_command(cmd, error_message: "Failed creating ConfigMap with DNS resolvers")
   end
