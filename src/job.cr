@@ -38,8 +38,6 @@ class Job
     temp_file_path = "/tmp/#{task_name}/job-#{job_id}.yaml"
     File.write(temp_file_path, yaml)
 
-    puts "Configuring job ##{job_id}..."
-
     run_shell_command("kubectl apply -f #{temp_file_path}", error_message: "Failed creating job ##{job_id}", print_output: false)
   end
 
