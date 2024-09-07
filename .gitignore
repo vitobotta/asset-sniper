@@ -9,3 +9,4 @@ docker-compose.override.yml
 asset-sniper.o
 input
 output
+input2

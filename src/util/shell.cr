@@ -41,7 +41,7 @@ module Util
       result = CommandResult.new(output, status.exit_code)
 
       unless result.success?
-        puts "#{error_message}: #{result.output}"
+        # puts "#{error_message}: #{result.output}"
         exit 1 if abort_on_error
       end
 

@@ -1,4 +1,5 @@
 require "random/secure"
+
 require "crinja"
 
 require "./util"
@@ -20,7 +21,6 @@ class AssetSniper::Execute
   getter command : String
   getter task_name : String
   getter task_code : String
-  private property done_cleanup : Bool = false
 
   def initialize(input_file_path : String, output_file_path : String, command : String, jobs : Int32, task : String = "")
     @input_file_path = input_file_path
@@ -29,35 +29,33 @@ class AssetSniper::Execute
     @jobs = jobs
     @task_code = task.blank? ? Random::Secure.hex(4) : task
     @task_name = "asset-sniper-task-#{task_code}"
+
+    setup_signal_handler
   end
 
   def run
-    puts "Running Asset Sniper task #{task_code} ..."
-
-    Signal::INT.trap do
-      cleanup
-      exit
-    end
-
-    at_exit do
-      cleanup
-    end
-
     begin
       create_input_artifacts
-      create_dns_resolvers_configmap_template
+
+      puts "Running Asset Sniper task #{task_code} with #{jobs_count} jobs..."
+
+      create_dns_resolvers_configmap
       execute_jobs
       aggregate_output
-    rescue ex
-      puts "An error occurred: #{ex.message}"
+
+      puts
+      puts "Task #{task_code} completed."
+
+    rescue e : Exception
+      puts "Task #{task_code} failed: #{e.message}"
+    ensure
       cleanup
     end
-
-    puts
-    puts "Task #{task_code} completed."
   end
 
   private def create_input_artifacts
+    puts "Preparing input artifacts..."
+
     input_file = File.read(input_file_path)
     lines = input_file.lines
     @jobs_count = [jobs, lines.size].min
@@ -79,7 +77,7 @@ class AssetSniper::Execute
     end
   end
 
-  private def create_dns_resolvers_configmap_template
+  private def create_dns_resolvers_configmap
     yaml = Crinja.render(CONFIG_MAP_TEMPLATE, {
       task_name: task_name
     })
@@ -90,11 +88,11 @@ class AssetSniper::Execute
     YAML
     CMD
 
-    run_shell_command(cmd, error_message: "Failed creating ConfigMap with DNS resolvers", print_output: false)
+    run_shell_command(cmd, print_output: false)
   end
 
   private def aggregate_output
-    run_shell_command("cat /tmp/#{task_name}/output-* > #{output_file_path}", error_message: "Failed aggregating results")
+    run_shell_command("cat /tmp/#{task_name}/output-* > #{output_file_path}")
   end
 
   private def execute_jobs
@@ -103,7 +101,6 @@ class AssetSniper::Execute
     jobs_template = jobs_count.times.map do |job_id|
       spawn do
         Job.new(task_name, job_id, command).run
-
         jobs_channel.send(nil)
       end
     end.join("\n---\n")
@@ -114,10 +111,13 @@ class AssetSniper::Execute
   end
 
   private def cleanup
-    return if done_cleanup
-
     AssetSniper::Cleanup.new(task_name).run
+  end
 
-    @done_cleanup = true
+  private def setup_signal_handler
+    Signal::INT.trap do
+      puts "Interrupted! Either reconnect to the existing task with the `reconnect` command or run the `cleanup` command to clean up the task."
+      exit
+    end
   end
 end
