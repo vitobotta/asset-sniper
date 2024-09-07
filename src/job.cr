@@ -54,17 +54,24 @@ class Job
     run_shell_command("kubectl cp -c asset-sniper #{input_file_path} #{pod_name}:/input", error_message: "Failed uploading artifact for job ##{job_id}")
   end
 
-  private def already_running
-    tool = command.split(" ").first
-    output = run_shell_command("kubectl exec #{pod_name} -c asset-sniper -- /bin/sh -c \"if test -f /output; then echo 1; else echo 0; fi\"", error_message: "Failed to check if tool is already running for job ##{job_id}", print_output: false).output.chomp
+  private def tool
+    command.split(" ").first
+  end
+
+  private def running
+    output = run_shell_command("kubectl exec #{pod_name} -c asset-sniper -- /bin/sh -c \"if pgrep #{tool} > /dev/null; then echo 1; else echo 0; fi\"", error_message: "Failed to check if tool is already running for job ##{job_id}", print_output: false).output.chomp
     output == "1"
   end
 
   private def run_command
-    if already_running
-      run_shell_command("kubectl exec #{pod_name} -c asset-sniper -- /bin/sh -c \"tail -f /output\"", error_message: "Failed to stream output for job ##{job_id}")
-    else
-      run_shell_command("kubectl exec #{pod_name} -c asset-sniper -- /bin/sh -c \"cat /input | #{command} | tee /output\"", error_message: "Failed uploading artifact for job ##{job_id}")
+    unless running
+      run_shell_command("kubectl exec #{pod_name} -c asset-sniper -- /bin/sh -c \"nohup sh -c 'cat /input | #{command} > /output 2>&1 &'\"", error_message: "Failed uploading artifact for job ##{job_id}")
+    end
+
+    loop do
+      break unless running
+      print "."
+      sleep 5
     end
   end
 
