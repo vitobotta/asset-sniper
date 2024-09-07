@@ -3,7 +3,7 @@ kind: Pod
 metadata:
   name: {{ job_name }}
   labels:
-    job_batch: {{ job_batch_name }}
+    job_batch: {{ task_name }}
     job-name: {{ job_name }}
     app-name: asset-sniper
 spec:
@@ -51,7 +51,7 @@ spec:
   volumes:
   - name: dns-config
     configMap:
-      name: {{ job_batch_name }}-dns-resolvers
+      name: {{ task_name }}-dns-resolvers
   - name: resolv-conf
     emptyDir: {}
   restartPolicy: Never

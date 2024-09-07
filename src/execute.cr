@@ -18,23 +18,22 @@ class AssetSniper::Execute
   getter jobs : Int32
   getter jobs_count : Int32 = 0
   getter command : String
-  getter job_batch_name : String
+  getter task_name : String
+  getter task_code : String
   private property done_cleanup : Bool = false
 
-  def initialize(input_file_path : String, output_file_path : String, command : String, jobs : Int32, batch : String = "")
+  def initialize(input_file_path : String, output_file_path : String, command : String, jobs : Int32, task : String = "")
     @input_file_path = input_file_path
     @output_file_path = output_file_path
     @command = command
     @jobs = jobs
-
-    @job_batch_name = if batch.blank?
-      "asset-sniper-batch-#{Random::Secure.hex(4)}"
-    else
-      "asset-sniper-batch-#{batch}"
-    end
+    @task_code = task.blank? ? Random::Secure.hex(4) : task
+    @task_name = "asset-sniper-task-#{task_code}"
   end
 
   def run
+    puts "Running Asset Sniper task #{task_code}..."
+
     Signal::INT.trap do
       cleanup
       exit
@@ -53,6 +52,9 @@ class AssetSniper::Execute
       puts "An error occurred: #{ex.message}"
       cleanup
     end
+
+    puts
+    puts "Task #{task_code} completed."
   end
 
   private def create_input_artifacts
@@ -67,13 +69,13 @@ class AssetSniper::Execute
       split_content[index % jobs] << "#{line}\n"
     end
 
-    job_batch_dir = "/tmp/#{job_batch_name}"
+    job_task_dir = "/tmp/#{task_name}"
 
-    FileUtils.rm_rf(job_batch_dir)
-    Dir.mkdir_p(job_batch_dir)
+    FileUtils.rm_rf(job_task_dir)
+    Dir.mkdir_p(job_task_dir)
 
     split_content.map_with_index do |content, index|
-      input_file_path = File.join("/tmp/#{job_batch_name}", "input-#{index}.yaml")
+      input_file_path = File.join("/tmp/#{task_name}", "input-#{index}.yaml")
       File.write(input_file_path, content.join)
       input_file_path
     end
@@ -81,7 +83,7 @@ class AssetSniper::Execute
 
   private def create_dns_resolvers_configmap_template
     yaml = Crinja.render(CONFIG_MAP_TEMPLATE, {
-      job_batch_name: job_batch_name
+      task_name: task_name
     })
 
     cmd = <<-CMD
@@ -96,7 +98,7 @@ class AssetSniper::Execute
   end
 
   private def aggregate_output
-    run_shell_command("cat /tmp/#{job_batch_name}/output-* > #{output_file_path}", error_message: "Failed aggregating results")
+    run_shell_command("cat /tmp/#{task_name}/output-* > #{output_file_path}", error_message: "Failed aggregating results")
   end
 
   private def execute_jobs
@@ -104,7 +106,7 @@ class AssetSniper::Execute
 
     jobs_template = jobs_count.times.map do |job_id|
       spawn do
-        Job.new(job_batch_name, job_id, command).run
+        Job.new(task_name, job_id, command).run
 
         jobs_channel.send(nil)
       end
@@ -118,7 +120,7 @@ class AssetSniper::Execute
   private def cleanup
     return if done_cleanup
 
-    AssetSniper::Cleanup.new(job_batch_name).run
+    AssetSniper::Cleanup.new(task_name).run
 
     @done_cleanup = true
   end

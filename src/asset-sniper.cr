@@ -59,9 +59,9 @@ module AssetSniper
                   short: "c",
                   required: true
 
-      define_flag batch : String,
-                  description: "The batch to reconnect to",
-                  long: "batch",
+      define_flag task : String,
+                  description: "The task to reconnect to",
+                  long: "task",
                   short: "b",
                   required: true
 
@@ -72,20 +72,20 @@ module AssetSniper
                   required: true
 
       def run
-        AssetSniper::Execute.new(flags.input_file_path, flags.output_file_path, flags.command, flags.jobs, flags.batch).run
+        AssetSniper::Execute.new(flags.input_file_path, flags.output_file_path, flags.command, flags.jobs, flags.task).run
       end
     end
 
     class Cleanup < Admiral::Command
       define_help description: "Cleanup - Remove an existing task"
 
-      define_flag batch : String,
-                  description: "The batch to reconnect to",
-                  long: "batch",
+      define_flag task : String,
+                  description: "The task to reconnect to",
+                  long: "task",
                   short: "b",
                   required: true
       def run
-        AssetSniper::Cleanup.new("asset-sniper-batch-#{flags.batch}").run
+        AssetSniper::Cleanup.new("asset-sniper-task-#{flags.task}").run
       end
     end
 

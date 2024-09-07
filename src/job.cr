@@ -9,15 +9,15 @@ class Job
 
   POD_TEMPLATE = {{ read_file("#{__DIR__}/templates/pod.yaml") }}
 
-  getter job_batch_name : String
+  getter task_name : String
   getter job_name : String
   getter job_id : Int32
   getter command : String
 
-  def initialize(job_batch_name : String, job_id : Int32, command : String)
-    @job_batch_name = job_batch_name
+  def initialize(task_name : String, job_id : Int32, command : String)
+    @task_name = task_name
     @job_id = job_id
-    @job_name = "#{job_batch_name}-job-#{job_id}"
+    @job_name = "#{task_name}-job-#{job_id}"
     @command = command
   end
 
@@ -31,11 +31,11 @@ class Job
 
   private def create_job
     yaml = Crinja.render(POD_TEMPLATE, {
-      job_batch_name: job_batch_name,
+      task_name: task_name,
       job_name: job_name
     })
 
-    temp_file_path = "/tmp/#{job_batch_name}/job-#{job_id}.yaml"
+    temp_file_path = "/tmp/#{task_name}/job-#{job_id}.yaml"
     File.write(temp_file_path, yaml)
 
     puts "Configuring job ##{job_id}..."
@@ -49,7 +49,7 @@ class Job
   end
 
   private def upload_artifact
-    input_file_path = File.join("/tmp/#{job_batch_name}", "input-#{job_id}.yaml")
+    input_file_path = File.join("/tmp/#{task_name}", "input-#{job_id}.yaml")
 
     run_shell_command("kubectl cp -c asset-sniper #{input_file_path} #{pod_name}:/input", error_message: "Failed uploading artifact for job ##{job_id}")
   end
@@ -69,7 +69,7 @@ class Job
   end
 
   private def extract_output
-    run_shell_command("kubectl cp -c asset-sniper #{pod_name}:/output /tmp/#{job_batch_name}/output-#{job_id} > /dev/null 2>&1", error_message: "Failed extracting output for job ##{job_id}")
+    run_shell_command("kubectl cp -c asset-sniper #{pod_name}:/output /tmp/#{task_name}/output-#{job_id} > /dev/null 2>&1", error_message: "Failed extracting output for job ##{job_id}")
   end
 
   private def pod_name
