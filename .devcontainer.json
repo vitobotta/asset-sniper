@@ -6,9 +6,9 @@
 		"docker-compose.override.yml"
 	],
 
-	"service": "hetzner-k3s",
+	"service": "asset-sniper",
 
-	"workspaceFolder": "/home/app/hetzner-k3s",
+	"workspaceFolder": "/home/app/asset-sniper",
 
 	"shutdownAction": "stopCompose",
 
@@ -71,7 +71,7 @@
 
 				"terminal.integrated.defaultProfile.linux": "zsh",
 				"terminal.integrated.shell.linux": "/bin/zsh",
-				"terminal.integrated.cwd": "/home/app/hetzner-k3s",
+				"terminal.integrated.cwd": "/home/app/asset-sniper",
 				"terminal.integrated.allowChords": false,
 				"terminal.explorerKind": "integrated",
 				"terminal.integrated.shellIntegration.enabled": true,
