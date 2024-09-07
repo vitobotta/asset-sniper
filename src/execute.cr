@@ -32,7 +32,7 @@ class AssetSniper::Execute
   end
 
   def run
-    puts "Running Asset Sniper task #{task_code}..."
+    puts "Running Asset Sniper task #{task_code} ..."
 
     Signal::INT.trap do
       cleanup
