@@ -45,7 +45,6 @@ class Job
 
   private def wait_for_pod
     run_shell_command("kubectl wait --for=condition=Ready pod -l job-name=#{job_name} --timeout=10m", error_message: "Failed waiting for pod ##{job_id}", print_output: false)
-    puts "Pod ##{job_id} is ready"
   end
 
   private def upload_artifact
