@@ -3,3 +3,6 @@
 /bin/
 /.shards/
 *.dwarf
+docker-compose.override.yml
+.env.vars
+.zsh_history
