@@ -1,11 +1,15 @@
 require "random/secure"
+require "crinja"
 
 require "./util"
 require "./util/shell"
+require "./job"
 
 class AssetSniper::Execute
   include Util
   include Util::Shell
+
+  CONFIG_MAP_TEMPLATE = {{ read_file("#{__DIR__}/templates/configmap.yaml") }}
 
   getter input_file_path : String
   getter output_file_path : String
@@ -13,6 +17,7 @@ class AssetSniper::Execute
   getter jobs : Int32
   getter jobs_count : Int32 = 0
   getter command : String
+  private property done_cleanup : Bool = false
 
   def initialize(input_file_path : String, output_file_path : String, command : String, jobs : Int32)
     @input_file_path = input_file_path
@@ -23,22 +28,22 @@ class AssetSniper::Execute
 
   def run
     Signal::INT.trap do
-      delete_pods
+      cleanup
       exit
     end
 
     at_exit do
-      delete_pods
+      cleanup
     end
 
     begin
       create_input_artifacts
-      create_jobs
-      wait_for_pods
-      upload_artifacts
-      run_command
+      create_dns_resolvers_configmap_template
+      execute_jobs
+      aggregate_output
     rescue ex
       puts "An error occurred: #{ex.message}"
+      cleanup
     end
   end
 
@@ -70,106 +75,50 @@ class AssetSniper::Execute
     end
   end
 
-  private def job_template(job_id : Int32) : String
-    <<-YAML
-    apiVersion: v1
-    kind: Pod
-    metadata:
-      name: #{job_name(job_id)}
-      labels:
-        job_batch: #{job_batch_name}
-        job-name: #{job_name(job_id)}
-        app-name: asset-sniper
-    spec:
-      containers:
-        - name: asset-sniper
-          image: vitobotta/assetsniper:vbefb074
-          imagePullPolicy: IfNotPresent
-          command: ["/bin/sh", "-c"]
-          args: ["tail -f /dev/null"]
-          resources:
-            requests:
-              cpu: 0.05
-              memory: 200Mi
-      restartPolicy: Never
+  private def create_dns_resolvers_configmap_template
+    yaml = Crinja.render(CONFIG_MAP_TEMPLATE, {
+      job_batch_name: job_batch_name
+    })
+
+    cmd = <<-CMD
+    kubectl apply -f - <<-YAML
+    #{yaml}
     YAML
+    CMD
+
+    puts "Creating configmap with DNS resolvers..."
+
+    run_shell_command(cmd, error_message = "Failed creating ConfigMap with DNS resolvers")
   end
 
-  private def job_name(index)
-    "#{job_batch_name}-job-#{index}"
-  end
-
-  private def create_jobs
-    jobs_template = jobs_count.times.map do |job_id|
-      job_template(job_id)
-    end.join("\n---\n")
-
-    jobs_template_temp_file = File.join("/tmp/#{job_batch_name}", "#{job_batch_name}-jobs.yaml")
-    File.write(jobs_template_temp_file, jobs_template)
-
-    puts "Creating jobs..."
-
-    run_shell_command("kubectl apply -f #{jobs_template_temp_file}", error_message = "Failed creating jobs")
-  end
-
-  private def wait_for_pods
-    cmd = "kubectl wait --for=condition=Ready pod -l job_batch=#{job_batch_name} --timeout=10m"
-
-    run_shell_command(cmd, error_message = "Failed waiting for pods")
-  end
-
-  private def upload_artifacts
-    upload_channel = Channel(Nil).new(10)
-
-    jobs_count.times do |job_id|
-      spawn do
-        input_file_path = File.join("/tmp/#{job_batch_name}", "input-#{job_id}.yaml")
-
-        cmd = <<-CMD
-        pod_name=$(kubectl get pods --selector=job-name=#{job_name(job_id)} -o jsonpath='{.items[*].metadata.name}')
-        kubectl cp #{input_file_path} $pod_name:/input
-        CMD
-
-        run_shell_command(cmd, error_message = "Failed uploading artifacts")
-
-        upload_channel.send(nil)
-      end
-    end
-
-    jobs_count.times do
-      upload_channel.receive
-    end
-  end
-
-  private def run_command
-    upload_channel = Channel(Nil).new
-
-    jobs_count.times do |job_id|
-      spawn do
-        input_file_path = File.join("/tmp/#{job_batch_name}", "input-#{job_id}.yaml")
-
-        cmd = <<-CMD
-        pod_name=$(kubectl get pods --selector=job-name=#{job_name(job_id)} -o jsonpath='{.items[*].metadata.name}')
-        kubectl exec -it $pod_name -- /bin/sh -c "cat /input | #{command} | tee /output"
-        mkdir -p /tmp/#{job_batch_name}/
-        kubectl cp $pod_name:/output /tmp/#{job_batch_name}/output-#{job_id}
-        CMD
-
-        run_shell_command(cmd, error_message = "Failed uploading artifacts")
-
-        upload_channel.send(nil)
-      end
-    end
-
-    jobs_count.times do
-      upload_channel.receive
-    end
-
+  private def aggregate_output
     run_shell_command("cat /tmp/#{job_batch_name}/output-* > #{output_file_path}", error_message = "Failed aggregating results")
   end
 
-  private def delete_pods
-    cmd = "kubectl delete pods -l job_batch=#{job_batch_name} --force --grace-period=0"
-    run_shell_command(cmd, error_message = "Failed uploading artifacts")
+  private def execute_jobs
+    jobs_channel = Channel(Nil).new
+
+    jobs_template = jobs_count.times.map do |job_id|
+      spawn do
+        Job.new(job_batch_name, job_id, command).run
+
+        jobs_channel.send(nil)
+      end
+    end.join("\n---\n")
+
+    jobs_count.times do
+      jobs_channel.receive
+    end
+  end
+
+  private def cleanup
+    return if done_cleanup
+
+    puts "Cleaning up..."
+
+    run_shell_command("kubectl delete pods -l job_batch=#{job_batch_name} --force --grace-period=0 2>/dev/null", error_message = "Failed uploading artifacts")
+    run_shell_command("kubectl delete configmap #{job_batch_name}-dns-resolvers", error_message = "Failed uploading artifacts")
+
+    @done_cleanup = true
   end
 end
