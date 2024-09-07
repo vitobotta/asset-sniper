@@ -13,26 +13,37 @@ class AssetSniper::Execute
   getter jobs : Int32
   getter jobs_count : Int32 = 0
   getter command : String
-  getter args : Array(String)
 
   def initialize(input_file_path : String, output_file_path : String, command : String, jobs : Int32)
     @input_file_path = input_file_path
     @output_file_path = output_file_path
-    command_parts = command.split(" ")
-    @command = command_parts[0]
-    @args = command_parts.size > 1 ? command_parts[1..].map { |arg| "\"#{arg}\"" } : [] of String
+    @command = command
     @jobs = jobs
   end
 
   def run
-    create_input_artifacts
-    create_jobs
-    wait_for_pods
-    upload_artifacts
+    Signal::INT.trap do
+      delete_pods
+      exit
+    end
+
+    at_exit do
+      delete_pods
+    end
+
+    begin
+      create_input_artifacts
+      create_jobs
+      wait_for_pods
+      upload_artifacts
+      run_command
+    rescue ex
+      puts "An error occurred: #{ex.message}"
+    end
   end
 
   private def job_batch_name
-    @job_batch_name ||= "asset-sniper-job-batch-#{Random::Secure.hex(4)}"
+    @job_batch_name ||= "asset-sniper-batch-#{Random::Secure.hex(4)}"
   end
 
   private def create_input_artifacts
@@ -68,6 +79,7 @@ class AssetSniper::Execute
       labels:
         job_batch: #{job_batch_name}
         job-name: #{job_name(job_id)}
+        app-name: asset-sniper
     spec:
       containers:
         - name: asset-sniper
@@ -101,21 +113,63 @@ class AssetSniper::Execute
   end
 
   private def wait_for_pods
-    cmd = "kubectl wait --for=condition=Ready pod -l job_batch=#{job_batch_name}"
+    cmd = "kubectl wait --for=condition=Ready pod -l job_batch=#{job_batch_name} --timeout=10m"
 
     run_shell_command(cmd, error_message = "Failed waiting for pods")
   end
 
   private def upload_artifacts
+    upload_channel = Channel(Nil).new(10)
+
     jobs_count.times do |job_id|
-      input_file_path = File.join("/tmp/#{job_batch_name}", "input-#{job_id}.yaml")
+      spawn do
+        input_file_path = File.join("/tmp/#{job_batch_name}", "input-#{job_id}.yaml")
 
-      cmd = <<-CMD
-      pod_name=$(kubectl get pods --selector=job-name=#{job_name(job_id)} -o jsonpath='{.items[*].metadata.name}')
-      kubectl cp #{input_file_path} $pod_name:/input
-      CMD
+        cmd = <<-CMD
+        pod_name=$(kubectl get pods --selector=job-name=#{job_name(job_id)} -o jsonpath='{.items[*].metadata.name}')
+        kubectl cp #{input_file_path} $pod_name:/input
+        CMD
 
-      run_shell_command(cmd, error_message = "Failed uploading artifacts")
+        run_shell_command(cmd, error_message = "Failed uploading artifacts")
+
+        upload_channel.send(nil)
+      end
     end
+
+    jobs_count.times do
+      upload_channel.receive
+    end
+  end
+
+  private def run_command
+    upload_channel = Channel(Nil).new
+
+    jobs_count.times do |job_id|
+      spawn do
+        input_file_path = File.join("/tmp/#{job_batch_name}", "input-#{job_id}.yaml")
+
+        cmd = <<-CMD
+        pod_name=$(kubectl get pods --selector=job-name=#{job_name(job_id)} -o jsonpath='{.items[*].metadata.name}')
+        kubectl exec -it $pod_name -- /bin/sh -c "cat /input | #{command} | tee /output"
+        mkdir -p /tmp/#{job_batch_name}/
+        kubectl cp $pod_name:/output /tmp/#{job_batch_name}/output-#{job_id}
+        CMD
+
+        run_shell_command(cmd, error_message = "Failed uploading artifacts")
+
+        upload_channel.send(nil)
+      end
+    end
+
+    jobs_count.times do
+      upload_channel.receive
+    end
+
+    run_shell_command("cat /tmp/#{job_batch_name}/output-* > #{output_file_path}", error_message = "Failed aggregating results")
+  end
+
+  private def delete_pods
+    cmd = "kubectl delete pods -l job_batch=#{job_batch_name} --force --grace-period=0"
+    run_shell_command(cmd, error_message = "Failed uploading artifacts")
   end
 end
