@@ -54,7 +54,7 @@ class Job
 
   private def run_command
     unless running
-      run_shell_command("kubectl exec #{pod_name} -c asset-sniper -- /bin/sh -c \"nohup sh -c 'cat input | #{command} 2>&1 | tee asset-sniper.log &'\"", print_output: false)
+      run_shell_command("kubectl exec #{pod_name} -c asset-sniper -- /bin/sh -c \"touch output && nohup sh -c 'cat input | #{command} 2>&1 | tee asset-sniper.log &'\"", print_output: false)
     end
 
     job_wait_channel = Channel(Nil).new
