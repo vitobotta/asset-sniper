@@ -46,8 +46,8 @@ spec:
         subPath: resolv.conf
       resources:
         requests:
-          cpu: 0.1
-          memory: 200Mi
+          cpu: 0.5
+          memory: 250Mi
   volumes:
   - name: dns-config
     configMap:

@@ -21,6 +21,7 @@ class AssetSniper::Execute
   getter command : String
   getter task_name : String
   getter task_code : String
+  getter start_time = Time.monotonic
 
   def initialize(input_file_path : String, output_file_path : String, command : String, jobs : Int32, task : String = "")
     @input_file_path = input_file_path
@@ -100,7 +101,7 @@ class AssetSniper::Execute
 
     jobs_template = jobs_count.times.map do |job_id|
       spawn do
-        Job.new(task_name, job_id, command).run
+        Job.new(task_name, job_id, command, start_time).run
         jobs_channel.send(nil)
       end
     end.join("\n---\n")

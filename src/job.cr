@@ -1,4 +1,5 @@
 require "crinja"
+require "colorize"
 
 require "./util"
 require "./util/shell"
@@ -13,12 +14,14 @@ class Job
   getter job_name : String
   getter job_id : Int32
   getter command : String
+  getter start_time : Time::Span
 
-  def initialize(task_name : String, job_id : Int32, command : String)
+  def initialize(task_name : String, job_id : Int32, command : String, start_time : Time::Span)
     @task_name = task_name
     @job_id = job_id
     @job_name = "#{task_name}-job-#{job_id}"
     @command = command
+    @start_time = start_time
   end
 
   def run
@@ -53,11 +56,30 @@ class Job
       run_shell_command("kubectl exec #{pod_name} -c asset-sniper -- /bin/sh -c \"nohup sh -c 'cat /input | #{command} > /output 2>&1 &'\"")
     end
 
-    loop do
-      break unless running
-      print "."
-      sleep 10
+    job_wait_channel = Channel(Nil).new
+
+    spawn do
+      loop do
+        break unless running
+        sleep 5
+      end
+
+      job_wait_channel.send(nil)
     end
+
+    spawn do
+      loop do
+        elapsed = Time.monotonic - start_time
+        elapsed_str = format_elapsed_time(elapsed)
+
+        print "\rElapsed time: #{elapsed_str} ".colorize.fore(:green)
+        STDOUT.flush
+
+        sleep 1
+      end
+    end
+
+    job_wait_channel.receive
   end
 
   private def extract_output
@@ -78,5 +100,18 @@ class Job
     File.write(temp_file_path, yaml)
 
     run_shell_command("kubectl apply -f #{temp_file_path}", print_output: false)
+  end
+
+  private def format_elapsed_time(span : Time::Span) : String
+    hours = span.total_hours.to_i
+    minutes = span.minutes
+    seconds = span.seconds
+    milliseconds = span.milliseconds
+
+    if hours > 0
+      sprintf("%02d:%02d", hours, minutes, seconds)
+    else
+      sprintf("%02d:%02d", minutes, seconds)
+    end
   end
 end
