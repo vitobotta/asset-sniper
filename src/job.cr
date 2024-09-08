@@ -68,18 +68,6 @@ class Job
       job_wait_channel.send(nil)
     end
 
-    spawn do
-      loop do
-        elapsed = Time.monotonic - start_time
-        elapsed_str = format_elapsed_time(elapsed)
-
-        print "\rElapsed time: #{elapsed_str} ".colorize.fore(:green)
-        STDOUT.flush
-
-        sleep 1
-      end
-    end
-
     job_wait_channel.receive
   end
 

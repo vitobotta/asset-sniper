@@ -38,21 +38,10 @@ class AssetSniper::Execute
 
   def run
     begin
-      create_input_artifacts
-
       puts "Running Asset Sniper task #{task_code} with #{jobs_count} jobs..."
 
-      spawn do
-        loop do
-          elapsed = Time.monotonic - start_time
-          elapsed_str = format_elapsed_time(elapsed)
-
-          print "\rElapsed time: #{elapsed_str} ".colorize.fore(:green)
-          STDOUT.flush
-
-          sleep 1
-        end
-      end
+      create_input_artifacts
+      print_elapsed_time
 
       create_dns_resolvers_configmap
       execute_jobs
@@ -69,8 +58,6 @@ class AssetSniper::Execute
   end
 
   private def create_input_artifacts
-    puts "Preparing input artifacts..."
-
     input_file = File.read(input_file_path)
     lines = input_file.lines
     @jobs_count = [jobs, lines.size].min
@@ -133,6 +120,20 @@ class AssetSniper::Execute
     Signal::INT.trap do
       puts "Interrupted! Either reconnect to the existing task #{task_code} with the `reconnect` command or run the `cleanup` command to clean up the task."
       exit
+    end
+  end
+
+  private def print_elapsed_time
+    spawn do
+      loop do
+        elapsed = Time.monotonic - start_time
+        elapsed_str = format_elapsed_time(elapsed)
+
+        print "\rElapsed time: #{elapsed_str} ".colorize.fore(:green)
+        STDOUT.flush
+
+        sleep 1
+      end
     end
   end
 end
