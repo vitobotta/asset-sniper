@@ -54,7 +54,7 @@ class Job
 
   private def run_command
     unless running
-      run_shell_command("kubectl exec #{pod_name} -c asset-sniper -- /bin/sh -c \"nohup sh -c 'cat input | #{command} | tee /log 2>&1 &'\"", print_output: false)
+      run_shell_command("kubectl exec #{pod_name} -c asset-sniper -- /bin/sh -c \"nohup sh -c 'cat input | #{command} | tee /log 2> /errors &'\"", print_output: false)
     end
 
     job_wait_channel = Channel(Nil).new
@@ -84,7 +84,7 @@ class Job
   end
 
   private def extract_output
-    run_shell_command("kubectl cp -c asset-sniper #{pod_name}:output /tmp/#{task_name}/output-#{job_id} > /dev/null 2>&1")
+    run_shell_command("kubectl cp -c asset-sniper #{pod_name}:output /tmp/#{task_name}/output-#{job_id} > /dev/null 2>&1", print_output: false)
   end
 
   private def pod_name
