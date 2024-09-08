@@ -40,11 +40,12 @@ class AssetSniper::Execute
 
   def run
     begin
+      create_input_artifacts
+
       puts "Running Asset Sniper task #{task_code} with #{jobs_count} jobs..."
 
       print_elapsed_time unless stream
 
-      create_input_artifacts
       create_dns_resolvers_configmap
       execute_jobs
       aggregate_output
