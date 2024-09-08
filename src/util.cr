@@ -12,4 +12,17 @@ module Util
 
     nil
   end
+
+  private def format_elapsed_time(span : Time::Span) : String
+    hours = span.total_hours.to_i
+    minutes = span.minutes
+    seconds = span.seconds
+    milliseconds = span.milliseconds
+
+    if hours > 0
+      sprintf("%02d:%02d", hours, minutes, seconds)
+    else
+      sprintf("%02d:%02d", minutes, seconds)
+    end
+  end
 end

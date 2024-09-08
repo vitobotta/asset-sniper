@@ -42,6 +42,18 @@ class AssetSniper::Execute
 
       puts "Running Asset Sniper task #{task_code} with #{jobs_count} jobs..."
 
+      spawn do
+        loop do
+          elapsed = Time.monotonic - start_time
+          elapsed_str = format_elapsed_time(elapsed)
+
+          print "\rElapsed time: #{elapsed_str} ".colorize.fore(:green)
+          STDOUT.flush
+
+          sleep 1
+        end
+      end
+
       create_dns_resolvers_configmap
       execute_jobs
       aggregate_output
