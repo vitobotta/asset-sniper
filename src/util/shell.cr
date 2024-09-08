@@ -37,6 +37,8 @@ module Util
         error: all_io_err
       )
 
+      FileUtils.rm_rf(cmd_file_path)
+
       output = status.success? ? stdout.to_s : stderr.to_s
       result = CommandResult.new(output, status.exit_code)
 
