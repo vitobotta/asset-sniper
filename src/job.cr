@@ -15,13 +15,15 @@ class Job
   getter job_id : Int32
   getter command : String
   getter start_time : Time::Span
+  getter stream : Bool
 
-  def initialize(task_name : String, job_id : Int32, command : String, start_time : Time::Span)
+  def initialize(task_name : String, job_id : Int32, command : String, start_time : Time::Span, stream : Bool = false)
     @task_name = task_name
     @job_id = job_id
     @job_name = "#{task_name}-job-#{job_id}"
     @command = command
     @start_time = start_time
+    @stream = stream
   end
 
   def run
@@ -54,7 +56,7 @@ class Job
 
   private def run_command
     unless running
-      run_shell_command("kubectl exec #{pod_name} -c asset-sniper -- /bin/sh -c \"touch output && nohup sh -c 'cat input | #{command} 2>&1 | tee asset-sniper.log &'\"", print_output: false)
+      run_shell_command("kubectl exec #{pod_name} -c asset-sniper -- /bin/sh -c \"touch output && nohup sh -c 'cat input | #{command} 2>&1 | tee asset-sniper.log &'\"", print_output: stream)
     end
 
     job_wait_channel = Channel(Nil).new

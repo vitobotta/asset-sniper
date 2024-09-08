@@ -27,14 +27,28 @@ module AssetSniper
                   short: "c",
                   required: true
 
-      define_flag jobs : Int16,
+      define_flag jobs : Int32,
                   description: "The number of jobs to run in parallel",
                   long: "jobs",
                   short: "j",
-                  required: true
+                  required: true,
+                  default: 1
+
+      define_flag stream : Bool,
+                  description: "Stream the output of the jobs",
+                  long: "stream",
+                  short: "s",
+                  required: false,
+                  default: false
 
       def run
-        AssetSniper::Execute.new(flags.input_file_path, flags.output_file_path, flags.command, flags.jobs).run
+        AssetSniper::Execute.new(
+          input_file_path: flags.input_file_path,
+          output_file_path: flags.output_file_path,
+          command: flags.command,
+          jobs: flags.jobs,
+          stream: flags.stream
+        ).run
       end
     end
 
@@ -65,14 +79,27 @@ module AssetSniper
                   short: "b",
                   required: true
 
-      define_flag jobs : Int16,
+      define_flag jobs : Int32,
                   description: "The number of jobs to run in parallel",
                   long: "jobs",
                   short: "j",
                   required: true
 
+      define_flag stream : Bool,
+                  description: "Stream the output of the jobs",
+                  long: "stream",
+                  short: "s",
+                  required: false
+
       def run
-        AssetSniper::Execute.new(flags.input_file_path, flags.output_file_path, flags.command, flags.jobs, flags.task).run
+        AssetSniper::Execute.new(
+          input_file_path: flags.input_file_path,
+          output_file_path: flags.output_file_path,
+          command: flags.command,
+          jobs: flags.jobs,
+          stream: flags.stream,
+          task: flags.task
+        ).run
       end
     end
 

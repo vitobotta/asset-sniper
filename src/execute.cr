@@ -23,8 +23,9 @@ class AssetSniper::Execute
   getter task_code : String
   getter start_time = Time.monotonic
   getter job_task_dir : String
+  getter stream : Bool
 
-  def initialize(input_file_path : String, output_file_path : String, command : String, jobs : Int32, task : String = "")
+  def initialize(input_file_path : String, output_file_path : String, command : String, jobs : Int32, task : String = "", stream : Bool = false)
     @input_file_path = input_file_path
     @output_file_path = output_file_path
     @command = command
@@ -32,6 +33,7 @@ class AssetSniper::Execute
     @task_code = task.blank? ? Random::Secure.hex(4) : task
     @task_name = "asset-sniper-task-#{task_code}"
     @job_task_dir = "/tmp/#{task_name}"
+    @stream = stream
 
     setup_signal_handler
   end
@@ -40,9 +42,9 @@ class AssetSniper::Execute
     begin
       puts "Running Asset Sniper task #{task_code} with #{jobs_count} jobs..."
 
-      create_input_artifacts
-      print_elapsed_time
+      print_elapsed_time unless stream
 
+      create_input_artifacts
       create_dns_resolvers_configmap
       execute_jobs
       aggregate_output
@@ -100,7 +102,7 @@ class AssetSniper::Execute
 
     jobs_template = jobs_count.times.map do |job_id|
       spawn do
-        Job.new(task_name, job_id, command, start_time).run
+        Job.new(task_name: task_name, job_id: job_id, command: command, start_time: start_time, stream: stream).run
         jobs_channel.send(nil)
       end
     end.join("\n---\n")
