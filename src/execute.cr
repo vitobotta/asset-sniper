@@ -22,6 +22,7 @@ class AssetSniper::Execute
   getter task_name : String
   getter task_code : String
   getter start_time = Time.monotonic
+  getter job_task_dir : String
 
   def initialize(input_file_path : String, output_file_path : String, command : String, jobs : Int32, task : String = "")
     @input_file_path = input_file_path
@@ -30,6 +31,7 @@ class AssetSniper::Execute
     @jobs = jobs
     @task_code = task.blank? ? Random::Secure.hex(4) : task
     @task_name = "asset-sniper-task-#{task_code}"
+    @job_task_dir = "/tmp/#{task_name}"
 
     setup_signal_handler
   end
@@ -66,8 +68,6 @@ class AssetSniper::Execute
       split_content[index % jobs] << "#{line}\n"
     end
 
-    job_task_dir = "/tmp/#{task_name}"
-
     FileUtils.rm_rf(job_task_dir)
     Dir.mkdir_p(job_task_dir)
 
@@ -93,7 +93,7 @@ class AssetSniper::Execute
   end
 
   private def aggregate_output
-    run_shell_command("cat /tmp/#{task_name}/output-* > #{output_file_path}")
+    run_shell_command("cat /tmp/#{task_name}/output-* > #{output_file_path}", print_output: false)
   end
 
   private def execute_jobs
@@ -112,6 +112,8 @@ class AssetSniper::Execute
   end
 
   private def cleanup
+    FileUtils.rm_rf(job_task_dir)
+
     AssetSniper::Cleanup.new(task_name).run
   end
 
