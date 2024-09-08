@@ -30,16 +30,17 @@ class Job
     upload_artifact
     run_command
     extract_output
+    delete_pod
   end
 
   private def wait_for_pod
-    run_shell_command("kubectl wait --for=condition=Ready pod -l job-name=#{job_name} --timeout=10m", print_output: false)
+    run_shell_command("kubectl wait --for=condition=Ready pod -l job-name=#{job_name} --timeout=10m 2>/dev/null", print_output: false)
   end
 
   private def upload_artifact
     input_file_path = File.join("/tmp/#{task_name}", "input-#{job_id}.yaml")
 
-    run_shell_command("kubectl cp -c asset-sniper #{input_file_path} #{pod_name}:/input")
+    run_shell_command("kubectl cp -c asset-sniper #{input_file_path} #{pod_name}:input")
   end
 
   private def tool
@@ -47,13 +48,13 @@ class Job
   end
 
   private def running
-    output = run_shell_command("kubectl exec #{pod_name} -c asset-sniper -- /bin/sh -c \"if pgrep #{tool} > /dev/null; then echo 1; else echo 0; fi\"", print_output: false).output.chomp
+    output = run_shell_command("kubectl exec #{pod_name} -c asset-sniper 2>/dev/null -- /bin/sh -c \"if pgrep #{tool} > /dev/null; then echo 1; else echo 0; fi\"", print_output: false).output.chomp
     output == "1"
   end
 
   private def run_command
     unless running
-      run_shell_command("kubectl exec #{pod_name} -c asset-sniper -- /bin/sh -c \"nohup sh -c 'cat /input | #{command} > /output 2>&1 &'\"")
+      run_shell_command("kubectl exec #{pod_name} -c asset-sniper -- /bin/sh -c \"nohup sh -c 'cat input | #{command} | tee /log 2>&1 &'\"", print_output: false)
     end
 
     job_wait_channel = Channel(Nil).new
@@ -61,7 +62,7 @@ class Job
     spawn do
       loop do
         break unless running
-        sleep 5
+        sleep 10
       end
 
       job_wait_channel.send(nil)
@@ -83,11 +84,11 @@ class Job
   end
 
   private def extract_output
-    run_shell_command("kubectl cp -c asset-sniper #{pod_name}:/output /tmp/#{task_name}/output-#{job_id} > /dev/null 2>&1")
+    run_shell_command("kubectl cp -c asset-sniper #{pod_name}:output /tmp/#{task_name}/output-#{job_id} > /dev/null 2>&1")
   end
 
   private def pod_name
-    run_shell_command(command: "kubectl get pods --selector=job-name=#{job_name} -o jsonpath='{.items[*].metadata.name}'", print_output: false).output
+    run_shell_command(command: "kubectl get pods --selector=job-name=#{job_name} -o jsonpath='{.items[*].metadata.name}' 2>/dev/null", print_output: false).output
   end
 
   private def create_pod
@@ -113,5 +114,9 @@ class Job
     else
       sprintf("%02d:%02d", minutes, seconds)
     end
+  end
+
+  private def delete_pod
+    run_shell_command("kubectl delete pods -l job-name=#{job_name} --force --grace-period=0 2>/dev/null", print_output: false)
   end
 end
