@@ -117,7 +117,7 @@ class AssetSniper::Execute
 
   private def setup_signal_handler
     Signal::INT.trap do
-      puts "Interrupted! Either reconnect to the existing task with the `reconnect` command or run the `cleanup` command to clean up the task."
+      puts "Interrupted! Either reconnect to the existing task #{task_code} with the `reconnect` command or run the `cleanup` command to clean up the task."
       exit
     end
   end
