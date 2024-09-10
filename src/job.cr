@@ -50,7 +50,7 @@ class Job
   end
 
   private def running
-    output = run_shell_command("kubectl exec #{pod_name} -c asset-sniper 2>/dev/null -- /bin/sh -c \"if pgrep #{tool} > /dev/null; then echo 1; else echo 0; fi\"", print_output: false).output.chomp
+    output = run_shell_command("kubectl exec #{pod_name} -c asset-sniper 2>/dev/null -- /bin/sh -c \"if ps waux | grep #{tool} | grep -v grep | grep -v '\[' > /dev/null; then echo 1; else echo 0; fi\"", print_output: false).output.chomp
     output == "1"
   end
 
