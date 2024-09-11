@@ -15,7 +15,6 @@ class AssetSniper::Cleanup
     puts "Cleaning up task #{task_name.split("-").last}..."
 
     delete_pods
-    delete_configmap
   end
 
   private def pods_exist
@@ -27,20 +26,6 @@ class AssetSniper::Cleanup
     retry_three_times do
       while pods_exist
         run_shell_command("kubectl delete pods -l job_batch=#{task_name} --force --grace-period=0 2>/dev/null", print_output: false)
-        sleep 1
-      end
-    end
-  end
-
-  private def configmap_exists
-    output = run_shell_command("kubectl get configmap #{task_name}-dns-resolvers --no-headers 2>/dev/null", print_output: false).output
-    !output.empty?
-  end
-
-  private def delete_configmap
-    retry_three_times do
-      while configmap_exists
-        run_shell_command("kubectl delete configmap #{task_name}-dns-resolvers --force --grace-period=0 2>/dev/null", print_output: false)
         sleep 1
       end
     end

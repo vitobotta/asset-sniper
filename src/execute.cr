@@ -11,8 +11,6 @@ class AssetSniper::Execute
   include Util
   include Util::Shell
 
-  CONFIG_MAP_TEMPLATE = {{ read_file("#{__DIR__}/templates/configmap.yaml") }}
-
   getter input_file_path : String
   getter output_file_path : String
   getter command : String
@@ -46,7 +44,6 @@ class AssetSniper::Execute
 
       print_elapsed_time unless stream
 
-      create_dns_resolvers_configmap
       execute_jobs
       aggregate_output
 
@@ -78,20 +75,6 @@ class AssetSniper::Execute
       File.write(input_file_path, content.join)
       input_file_path
     end
-  end
-
-  private def create_dns_resolvers_configmap
-    yaml = Crinja.render(CONFIG_MAP_TEMPLATE, {
-      task_name: task_name
-    })
-
-    cmd = <<-CMD
-    kubectl apply -f - <<-YAML
-    #{yaml}
-    YAML
-    CMD
-
-    run_shell_command(cmd, print_output: false)
   end
 
   private def aggregate_output

@@ -56,7 +56,7 @@ spec:
   volumes:
   - name: dns-config
     configMap:
-      name: {{ task_name }}-dns-resolvers
+      name: asset-sniper-dns-resolvers
   - name: resolv
     emptyDir: {}
   - name: shared
