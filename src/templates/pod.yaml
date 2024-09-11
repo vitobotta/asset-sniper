@@ -13,7 +13,9 @@ spec:
     command: ["/bin/sh", "-c"]
     args:
     - |
-      # Read DNS servers from the mounted config map file
+      host_ip=$(nslookup asset-sniper-ip-rotator.default.svc.cluster.local | awk '/Address: / { print $2 }' | tail -n1)
+      echo "http://${host_ip}:8888" > /shared/proxy
+
       RESOLVERS=$(cat /etc/dns-config/resolvers)
 
       # Update the custom resolv.conf
@@ -22,36 +24,41 @@ spec:
         for dns in $RESOLVERS; do
           echo "nameserver $dns";
         done
-      } > /etc/custom-resolv.conf
-
-      # Copy updated resolv.conf to the mounted path
-      cp /etc/custom-resolv.conf /etc/mounted-resolv/resolv.conf
-
+        echo "options ndots:0";
+      } > /resolv/resolv.conf
     volumeMounts:
     - name: dns-config
       mountPath: /etc/dns-config
-    - name: resolv-conf
-      mountPath: /etc/mounted-resolv
+    - name: resolv
+      mountPath: /resolv
+    - name: shared
+      mountPath: /shared
   containers:
     - name: asset-sniper
-      image: vitobotta/assetsniper:vbefb074
+      image: vitobotta/katana:v2fa2da6
       imagePullPolicy: IfNotPresent
       command: ["/bin/sh", "-c"]
       args: ["tail -f /dev/null"]
       volumeMounts:
-      - name: dns-config
-        mountPath: /etc/dns-config
-      - name: resolv-conf
+      - name: resolv
         mountPath: /etc/resolv.conf
         subPath: resolv.conf
+      - name: shared
+        mountPath: /shared/proxy
+        subPath: proxy
       resources:
         requests:
-          cpu: 0.1
-          memory: 250Mi
+          cpu: 2
+          memory: 2Gi
+        limits:
+          cpu: 2
+          memory: 2Gi
   volumes:
   - name: dns-config
     configMap:
       name: {{ task_name }}-dns-resolvers
-  - name: resolv-conf
+  - name: resolv
+    emptyDir: {}
+  - name: shared
     emptyDir: {}
   restartPolicy: Never
