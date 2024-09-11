@@ -56,7 +56,7 @@ class Job
 
   private def run_command
     unless running
-      run_shell_command("kubectl exec #{pod_name} -c asset-sniper -- /bin/sh -c \"touch output && nohup sh -c 'HTTP_PROXY=$(cat /shared/proxy) HTTPS_PROXY=$(cat /shared/proxy) cat input | #{command} 2>&1 | tee asset-sniper.log &'\"", print_output: stream)
+      run_shell_command("kubectl exec #{pod_name} -c asset-sniper -- /bin/sh -c \"touch output && nohup sh -c '. /env-vars/proxy.env && cat input | #{command} 2>&1 | tee asset-sniper.log &'\"", print_output: stream)
     end
 
     job_wait_channel = Channel(Nil).new
