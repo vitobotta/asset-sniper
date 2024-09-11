@@ -1,0 +1,233 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: asset-sniper-proxy
+  namespace: default
+spec:
+  selector:
+    matchLabels:
+      app: asset-sniper-proxy
+  template:
+    metadata:
+      labels:
+        app: asset-sniper-proxy
+    spec:
+      containers:
+      - name: tinyproxy
+        image: toolbelt/tinyproxy:2024-08-23
+        ports:
+        - containerPort: 8888
+        resources:
+          limits:
+            memory: "50Mi"
+            cpu: "100m"
+          requests:
+            memory: "50Mi"
+            cpu: "100m"
+        volumeMounts:
+        - name: config-volume
+          mountPath: /etc/tinyproxy
+      volumes:
+      - name: config-volume
+        configMap:
+          name: asset-sniper-proxy-config
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: asset-sniper-proxy-config
+  namespace: default
+data:
+  tinyproxy.conf: |
+    User nobody
+    Group nogroup
+    Port 8888
+    Timeout 600
+    LogLevel Info
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: asset-sniper-proxy
+  namespace: default
+spec:
+  sessionAffinity: None
+  selector:
+    app: asset-sniper-proxy
+  ports:
+  - protocol: TCP
+    port: 8888
+    targetPort: 8888
+  clusterIP: None
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: asset-sniper-haproxy-updater
+  namespace: default
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  namespace: default
+  name: asset-sniper-endpoint-reader
+rules:
+- apiGroups: [""]
+  resources: ["endpoints"]
+  verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: asset-sniper-read-endpoints
+  namespace: default
+subjects:
+- kind: ServiceAccount
+  name: asset-sniper-haproxy-updater
+  namespace: default
+roleRef:
+  kind: Role
+  name: asset-sniper-endpoint-reader
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: haproxy-scripts
+  namespace: default
+data:
+  update_haproxy_cfg.sh: |
+    SERVICE_NAME="asset-sniper-proxy"
+    POD_NAMESPACE="default"
+    CONFIG_TEMPLATE="/scripts/haproxy.cfg.template"
+    CONFIG_FILE="/usr/local/etc/haproxy/haproxy.cfg"
+    BACKEND_FILE="/usr/local/etc/haproxy/haproxy_backends.cfg"
+
+    while true; do
+      # Get all the IPs from the endpoints
+      ENDPOINT_IPS=$(kubectl get endpoints $SERVICE_NAME -n $POD_NAMESPACE -o jsonpath='{.subsets[].addresses[*].ip}')
+
+      # Re-generate the backend file
+      echo "backend tinyproxy" > $BACKEND_FILE
+      echo "    log global" >> $BACKEND_FILE
+      echo "    mode http" >> $BACKEND_FILE
+      echo "    balance roundrobin" >> $BACKEND_FILE
+      echo "    option httpchk" >> $BACKEND_FILE
+      echo "    http-check send meth GET uri / ver HTTP/1.1 hdr Host www.example.com" >> $BACKEND_FILE
+      for IP in $ENDPOINT_IPS; do
+        SERVER_NAME=$(echo "$IP" | tr '.' '-')
+        echo "    server $SERVER_NAME $IP:8888 maxconn 1 check" >> $BACKEND_FILE
+      done
+
+      # Concatenate the HAProxy template and the backend
+      cat $CONFIG_TEMPLATE $BACKEND_FILE > $CONFIG_FILE
+
+      # Send SIGHUP to the HAProxy process to reload the configuration
+      kill -HUP $(cat /usr/local/etc/haproxy/haproxy.pid)
+
+      sleep 10
+    done
+
+  haproxy.cfg.template: |
+    global
+        maxconn 4096
+        log stdout format raw local0 debug
+
+    defaults
+        log global
+        timeout connect 5000ms
+        timeout client 50000ms
+        timeout server 50000ms
+
+    listen stats
+        bind 0.0.0.0:8404
+        mode http
+        stats enable
+        stats uri /
+        stats refresh 2s
+        stats show-node
+
+    frontend http-in
+        bind 0.0.0.0:8888
+        default_backend tinyproxy
+        log global
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: asset-sniper-ip-rotator
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: asset-sniper-ip-rotator
+  template:
+    metadata:
+      labels:
+        app: asset-sniper-ip-rotator
+    spec:
+      serviceAccountName: asset-sniper-haproxy-updater
+      shareProcessNamespace: true
+      containers:
+        - name: haproxy
+          image: haproxytech/haproxy-alpine:3.1
+          args: ["-f", "/usr/local/etc/haproxy/haproxy.cfg", "-p", "/usr/local/etc/haproxy/haproxy.pid"]
+          securityContext:
+            runAsUser: 0
+            allowPrivilegeEscalation: true
+            privileged: true
+            capabilities:
+              add:
+                - SYS_PTRACE
+          resources:
+            limits:
+              memory: "100Mi"
+              cpu: "200m"
+            requests:
+              memory: "100Mi"
+              cpu: "300m"
+          ports:
+          - containerPort: 8888
+          - containerPort: 8404
+          volumeMounts:
+          - name: haproxy-config
+            mountPath: /usr/local/etc/haproxy
+          - name: scripts
+            mountPath: /scripts
+        - name: config-updater
+          image: bitnami/kubectl:latest
+          command: ["/bin/sh", "/scripts/update_haproxy_cfg.sh"]
+          securityContext:
+            runAsUser: 0
+            allowPrivilegeEscalation: true
+            privileged: true
+            capabilities:
+              add:
+                - SYS_PTRACE
+                - KILL
+          volumeMounts:
+          - name: haproxy-config
+            mountPath: /usr/local/etc/haproxy
+          - name: scripts
+            mountPath: /scripts
+      volumes:
+      - name: haproxy-config
+        emptyDir: {}
+      - name: scripts
+        configMap:
+          name: haproxy-scripts
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: asset-sniper-ip-rotator
+  namespace: default
+spec:
+  sessionAffinity: None
+  selector:
+    app: asset-sniper-ip-rotator
+  ports:
+  - protocol: TCP
+    port: 8888
+    targetPort: 8888
+  type: ClusterIP
