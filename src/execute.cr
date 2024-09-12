@@ -82,14 +82,35 @@ class AssetSniper::Execute
   end
 
   private def execute_jobs
-    jobs_channel = Channel(Nil).new
+    jobs_channel = Channel(Job).new
+
+    puts "Waiting for all pods to be ready..."
 
     jobs_template = jobs_count.times.map do |job_id|
       spawn do
-        Job.new(task_name: task_name, job_id: job_id, command: command, start_time: start_time, stream: stream).run
-        jobs_channel.send(nil)
+        job = Job.new(task_name: task_name, job_id: job_id, command: command, start_time: start_time, stream: stream)
+        job.create
+        jobs_channel.send(job)
       end
     end.join("\n---\n")
+
+    jobs = [] of Job
+
+    jobs_count.times do
+      jobs << jobs_channel.receive
+    end
+
+    # Now all pods are ready, wait for 15 seconds to give time for haproxy to configure all the backends
+    puts "Configuring proxy..."
+    sleep 15
+
+    puts "Starting jobs..."
+    jobs.each do |job|
+      spawn do
+        job.run
+        jobs_channel.send(job)
+      end
+    end
 
     jobs_count.times do
       jobs_channel.receive
