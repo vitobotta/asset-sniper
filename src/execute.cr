@@ -65,7 +65,7 @@ class AssetSniper::Execute
     puts "\nPreparing input files for #{jobs} jobs..."
 
     input_file = File.read(input_file_path)
-    lines = input_file.lines.shuffle
+    lines = input_file.lines
     @jobs_count = [jobs, lines.size].min
     split_content = Array.new(jobs_count) { [] of String }
 
