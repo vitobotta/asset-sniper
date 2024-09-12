@@ -20,7 +20,7 @@ module Util
     milliseconds = span.milliseconds
 
     if hours > 0
-      sprintf("%02d:%02d", hours, minutes, seconds)
+      sprintf("%02d:%02d:%02d", hours, minutes, seconds)
     else
       sprintf("%02d:%02d", minutes, seconds)
     end
