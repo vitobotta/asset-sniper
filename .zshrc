@@ -5,7 +5,7 @@ autoload -U +X bashcompinit && bashcompinit
 
 plugins=(zsh-autosuggestions kubectl kubectx git-prompt)
 
-export LC_CTYPE=en_US.UTF-8
+export LANG=en_US.UTF-8
 export LC_ALL=en_US.UTF-8
 export EDITOR='code --wait'
 export VISUAL='code --wait'
