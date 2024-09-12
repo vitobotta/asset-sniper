@@ -27,13 +27,20 @@ RUN apt-get update && \
     g++ \
     openssl \
     libyaml-dev \
+    locales \
     openssh-client && \
     rm -rf /var/lib/apt/lists/*
+
+RUN locale-gen en_US.UTF-8 \
+  && update-locale
 
 RUN curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/$(uname -m | sed -e 's/x86_64/amd64/' -e 's/aarch64/arm64/')/kubectl" && chmod +x ./kubectl && mv ./kubectl /usr/local/bin/kubectl
 
 RUN sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" \
   && git clone https://github.com/zsh-users/zsh-autosuggestions ${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/zsh-autosuggestions
+
+RUN echo "export LANG=en_US.UTF-8" >> /root/.bashrc \
+  && echo "export LC_ALL=en_US.UTF-8" >> /root/.bashrc
 
 SHELL ["/bin/zsh", "-c"]
 
