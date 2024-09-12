@@ -68,11 +68,11 @@ spec:
         mountPath: /env-vars
       resources:
         requests:
-          cpu: 2
-          memory: 2Gi
+          cpu: 3
+          memory: 7Gi
         limits:
-          cpu: 2
-          memory: 2Gi
+          cpu: 3
+          memory: 7Gi
   volumes:
   - name: dns-config
     configMap:

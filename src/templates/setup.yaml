@@ -43,10 +43,10 @@ spec:
         - containerPort: 8888
         resources:
           requests:
-            memory: "50Mi"
+            memory: "100Mi"
             cpu: "100m"
           limits:
-            memory: "50Mi"
+            memory: "100Mi"
             cpu: "100m"
         volumeMounts:
         - name: config-volume
@@ -205,11 +205,11 @@ spec:
                 - SYS_PTRACE
           resources:
             requests:
-              memory: "100Mi"
-              cpu: "200m"
-            limits:
-              memory: "100Mi"
+              memory: "300Mi"
               cpu: "300m"
+            limits:
+              memory: "400Mi"
+              cpu: "400m"
           ports:
           - containerPort: 8888
           - containerPort: 8404
