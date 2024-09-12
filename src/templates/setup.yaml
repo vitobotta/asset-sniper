@@ -127,30 +127,28 @@ data:
     CONFIG_FILE="/usr/local/etc/haproxy/haproxy.cfg"
     BACKEND_FILE="/usr/local/etc/haproxy/haproxy_backends.cfg"
 
-    while true; do
-      # Get all the IPs from the endpoints
-      ENDPOINT_IPS=$(kubectl get endpoints $SERVICE_NAME -n $POD_NAMESPACE -o jsonpath='{.subsets[].addresses[*].ip}')
+    ENDPOINT_IPS=$(kubectl get endpoints $SERVICE_NAME -n $POD_NAMESPACE -o jsonpath='{.subsets[].addresses[*].ip}')
 
-      # Re-generate the backend file
-      echo "backend tinyproxy" > $BACKEND_FILE
-      echo "    log global" >> $BACKEND_FILE
-      echo "    mode http" >> $BACKEND_FILE
-      echo "    balance roundrobin" >> $BACKEND_FILE
-      echo "    option httpchk" >> $BACKEND_FILE
-      echo "    http-check send meth GET uri / ver HTTP/1.1 hdr Host www.example.com" >> $BACKEND_FILE
-      for IP in $ENDPOINT_IPS; do
-        SERVER_NAME=$(echo "$IP" | tr '.' '-')
-        echo "    server $SERVER_NAME $IP:8888 maxconn 1 check" >> $BACKEND_FILE
-      done
-
-      # Concatenate the HAProxy template and the backend
-      cat $CONFIG_TEMPLATE $BACKEND_FILE > $CONFIG_FILE
-
-      # Send SIGHUP to the HAProxy process to reload the configuration
-      kill -HUP $(cat /usr/local/etc/haproxy/haproxy.pid)
-
-      sleep 10
+    echo "backend tinyproxy" > $BACKEND_FILE
+    echo "    log global" >> $BACKEND_FILE
+    echo "    mode http" >> $BACKEND_FILE
+    echo "    balance roundrobin" >> $BACKEND_FILE
+    echo "    option httpchk" >> $BACKEND_FILE
+    echo "    http-check send meth GET uri / ver HTTP/1.1 hdr Host www.example.com" >> $BACKEND_FILE
+    for IP in $ENDPOINT_IPS; do
+      SERVER_NAME=$(echo "$IP" | tr '.' '-')
+      echo "    server $SERVER_NAME $IP:8888 maxconn 1 check" >> $BACKEND_FILE
     done
+
+    cat $CONFIG_TEMPLATE $BACKEND_FILE > $CONFIG_FILE
+
+    PID_FILE="/usr/local/etc/haproxy/haproxy.pid"
+
+    while [ ! -f "$PID_FILE" ]; do
+      sleep 1
+    done
+
+    kill -HUP $(cat "$PID_FILE")
 
   haproxy.cfg.template: |
     global
@@ -220,7 +218,7 @@ spec:
             mountPath: /scripts
         - name: config-updater
           image: bitnami/kubectl:latest
-          command: ["/bin/sh", "/scripts/update_haproxy_cfg.sh"]
+          command: ["/bin/sh", "-c", "/bin/sh /scripts/update_haproxy_cfg.sh && tail -f /dev/null"]
           securityContext:
             runAsUser: 0
             allowPrivilegeEscalation: true
