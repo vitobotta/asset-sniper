@@ -32,7 +32,6 @@ class Job
     upload_artifact
     run_command
     extract_output
-    delete_pod
   end
 
   private def wait_for_pod
@@ -91,9 +90,5 @@ class Job
     File.write(temp_file_path, yaml)
 
     run_shell_command("kubectl apply -f #{temp_file_path}", print_output: true)
-  end
-
-  private def delete_pod
-    run_shell_command("kubectl delete pods -l job-name=#{job_name} --force --grace-period=0 2>/dev/null", print_output: true)
   end
 end
