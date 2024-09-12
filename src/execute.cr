@@ -22,8 +22,9 @@ class AssetSniper::Execute
   getter start_time = Time.monotonic
   getter job_task_dir : String
   getter stream : Bool
+  getter debug : Bool
 
-  def initialize(input_file_path : String, output_file_path : String, command : String, jobs : Int32, task : String = "", stream : Bool = false)
+  def initialize(input_file_path : String, output_file_path : String, command : String, jobs : Int32, task : String = "", stream : Bool = false, debug : Bool = false)
     @input_file_path = input_file_path
     @output_file_path = output_file_path
     @command = command
@@ -32,6 +33,7 @@ class AssetSniper::Execute
     @task_name = "asset-sniper-task-#{task_code}"
     @job_task_dir = "/tmp/#{task_name}"
     @stream = stream
+    @debug = debug
 
     setup_signal_handler
   end
@@ -40,24 +42,28 @@ class AssetSniper::Execute
     begin
       create_input_artifacts
 
-      puts "Running Asset Sniper task #{task_code} with #{jobs_count} jobs..."
+      puts "\nRunning Asset Sniper task #{task_code} with #{jobs_count} jobs..."
 
-      print_elapsed_time unless stream
+      print_elapsed_time unless stream || debug
 
       execute_jobs
       aggregate_output
 
       puts
-      puts "Task #{task_code} completed."
+      puts "\nTask #{task_code} completed."
 
     rescue e : Exception
-      puts "Task #{task_code} failed: #{e.message}"
+      puts "\nTask #{task_code} failed: #{e.message}"
     ensure
       cleanup
     end
+
+    print_elapsed_time
   end
 
   private def create_input_artifacts
+    puts "\nPreparing input files for #{jobs} jobs..."
+
     input_file = File.read(input_file_path)
     lines = input_file.lines
     @jobs_count = [jobs, lines.size].min
@@ -78,17 +84,17 @@ class AssetSniper::Execute
   end
 
   private def aggregate_output
-    run_shell_command("cat /tmp/#{task_name}/output-* > #{output_file_path}", print_output: false)
+    run_shell_command("cat /tmp/#{task_name}/output-* > #{output_file_path}", error_message: "Failed to aggregate output", print_output: debug)
   end
 
   private def execute_jobs
     jobs_channel = Channel(Job).new
 
-    puts "Waiting for all pods to be ready..."
+    puts "\nWaiting for all pods to be ready..."
 
     jobs_template = jobs_count.times.map do |job_id|
       spawn do
-        job = Job.new(task_name: task_name, job_id: job_id, command: command, start_time: start_time, stream: stream)
+        job = Job.new(task_name: task_name, job_id: job_id, command: command, start_time: start_time, stream: stream, debug: debug)
         job.create
         jobs_channel.send(job)
       end
@@ -100,11 +106,8 @@ class AssetSniper::Execute
       jobs << jobs_channel.receive
     end
 
-    # Now all pods are ready, wait for 15 seconds to give time for haproxy to configure all the backends
-    puts "Configuring proxy..."
-    sleep 15
+    update_proxy
 
-    puts "Starting jobs..."
     jobs.each do |job|
       spawn do
         job.run
@@ -117,15 +120,29 @@ class AssetSniper::Execute
     end
   end
 
+  private def update_proxy
+    puts "\nWaiting for proxy to be ready..."
+
+    cmd = <<-CMD
+      kubectl rollout status daemonset asset-sniper-proxy -n default
+
+      for POD in $(kubectl get pods -n default -l app=asset-sniper-ip-rotator -o jsonpath='{.items[*].metadata.name}'); do
+        kubectl exec -n default $POD -c config-updater -- /bin/sh /scripts/update_haproxy_cfg.sh
+      done
+    CMD
+
+    run_shell_command(cmd, error_message: "Failed to aggregate output", print_output: debug)
+  end
+
   private def cleanup
     FileUtils.rm_rf(job_task_dir)
 
-    AssetSniper::Cleanup.new(task_name).run
+    AssetSniper::Cleanup.new(task_name: task_name, debug: debug).run
   end
 
   private def setup_signal_handler
     Signal::INT.trap do
-      puts "Interrupted! Either reconnect to the existing task #{task_code} with the `reconnect` command or run the `cleanup` command to clean up the task."
+      puts "\nInterrupted! Either reconnect to the existing task #{task_code} with the `reconnect` command or run the `cleanup` command to clean up the task."
       exit
     end
   end

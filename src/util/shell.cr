@@ -27,12 +27,14 @@ module Util
       end
 
       env = {
-        "KUBECONFIG" => kubeconfig_path
+        # "KUBECONFIG" => kubeconfig_path
+        "LANG" => "en_US.UTF-8",
+        "LC_ALL" => "en_US.UTF-8"
       }
 
       status = Process.run("bash",
         args: ["-c", cmd_file_path],
-        # env: env,
+        env: env,
         output: all_io_out,
         error: all_io_err
       )
@@ -43,7 +45,7 @@ module Util
       result = CommandResult.new(output, status.exit_code)
 
       unless result.success?
-        # puts "#{error_message}: #{result.output}"
+        puts "#{error_message}: #{result.output}"
         exit 1 if abort_on_error
       end
 

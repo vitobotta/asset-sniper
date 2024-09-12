@@ -41,13 +41,20 @@ module AssetSniper
                   required: false,
                   default: false
 
+      define_flag debug : Bool,
+                  description: "Enabled debug ouput",
+                  long: "debug",
+                  short: "d",
+                  required: false
+
       def run
         AssetSniper::Execute.new(
           input_file_path: flags.input_file_path,
           output_file_path: flags.output_file_path,
           command: flags.command,
           jobs: flags.jobs,
-          stream: flags.stream
+          stream: flags.stream,
+          debug: flags.debug
         ).run
       end
     end
@@ -91,6 +98,12 @@ module AssetSniper
                   short: "s",
                   required: false
 
+      define_flag debug : Bool,
+                  description: "Enabled debug ouput",
+                  long: "debug",
+                  short: "d",
+                  required: false
+
       def run
         AssetSniper::Execute.new(
           input_file_path: flags.input_file_path,
@@ -98,7 +111,8 @@ module AssetSniper
           command: flags.command,
           jobs: flags.jobs,
           stream: flags.stream,
-          task: flags.task
+          task: flags.task,
+          debug: flags.debug
         ).run
       end
     end
@@ -111,8 +125,15 @@ module AssetSniper
                   long: "task",
                   short: "b",
                   required: true
+
+      define_flag debug : Bool,
+                  description: "Enabled debug ouput",
+                  long: "debug",
+                  short: "d",
+                  required: false
+
       def run
-        AssetSniper::Cleanup.new("asset-sniper-task-#{flags.task}").run
+        AssetSniper::Cleanup.new(task_name: "asset-sniper-task-#{flags.task}", debug: flags.debug).run
       end
     end
 
