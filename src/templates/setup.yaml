@@ -195,7 +195,7 @@ spec:
       containers:
         - name: haproxy
           image: haproxytech/haproxy-alpine:3.1
-          args: ["-f", "/usr/local/etc/haproxy/haproxy.cfg", "-p", "/usr/local/etc/haproxy/haproxy.pid"]
+          args: ["-f", "/usr/local/etc/haproxy/haproxy.cfg", "-p", "/usr/local/etc/haproxy/haproxy.pid", "-db"]
           securityContext:
             runAsUser: 0
             allowPrivilegeEscalation: true
